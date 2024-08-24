@@ -1,6 +1,6 @@
 <p align="center">
     <img src="https://github.com/idanless/CyberLink/blob/main/cyberLink.png?raw=true")
-" alt="Logo" width="200"/>
+" alt="Logo" width="600"/>
 </p>
 ## Overview
 
