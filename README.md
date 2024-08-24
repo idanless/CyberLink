@@ -1,5 +1,6 @@
-# CyberLink
-
+<p align="center">
+    <img src="path/to/your/logo.png" alt="Logo" width="200"/>
+</p>
 ## Overview
 
 *CyberLink** is a cutting-edge screen-sharing application that allows users to create and join real-time screen-sharing sessions with ease. Built with Flask and Socket.IO, it provides seamless, high-quality screen sharing with a focus on security and user experience.
