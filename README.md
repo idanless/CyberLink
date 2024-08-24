@@ -19,7 +19,6 @@
 - Python 3.7+
 - Flask
 - Flask-SocketIO
-- Flask-Limiter
 - pyotp
 
 ### Installation
