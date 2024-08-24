@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Sharing App</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        #app-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 1200px; /* Increased for better fit */
+            max-height: 700px; /* Increased for better fit */
+            overflow: hidden;
+            position: relative;
+        }
+
+        img#logo {
+            width: 500px; /* Adjust size as needed */
+            height: auto; /* Maintain aspect ratio */
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        button, input {
+            margin: 10px 0;
+            padding: 10px;
+            width: calc(100% - 20px);
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        input {
+            background-color: #f4f4f4;
+        }
+
+        video {
+            width: 100%;
+            height: auto; /* Maintain aspect ratio */
+            max-height: 45%; /* Adjusted for better visibility */
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #localVideo {
+            max-height: 180px; /* Adjusted for 1920x1080 screen size */
+        }
+
+        #remoteVideo {
+            max-height: 360px; /* Adjusted for 1920x1080 screen size */
+        }
+
+        #status {
+            font-size: 20px; /* Increased font size */
+            white-space: pre-wrap; /* Preserve formatting */
+            overflow: auto; /* Scroll if content is too large */
+            max-height: 100px; /* Fixed height with scroll */
+            font-weight: bold;
+            color: #007BFF;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #roomIdDisplay {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #333;
+            font-size: 24px; /* Increase font size */
+        }
+
+        #copyButton {
+            margin-left: 10px;
+            background-color: #28a745;
+            color: white;
+        }
+
+        #copyButton:hover {
+            background-color: #218838;
+        }
+
+        #stopSharing {
+            background-color: #dc3545;
+        }
+
+        #stopSharing:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <img id="logo" src="{{ url_for('static', filename='logo2.png') }}" alt="App Logo">
+        <h1>Screen Sharing App</h1>
+        <div id="initial-controls">
+            <button id="createRoom">Create Room</button>
+            <input id="roomId" type="text" placeholder="Room ID">
+            <button id="joinRoom">Join Room</button>
+        </div>
+        <div id="roomIdDisplay" class="hidden">
+            <span id="roomIdText"></span>
+            <button id="copyButton" class="hidden">Copy</button>
+        </div>
+        <button id="startSharing" class="hidden">Start Sharing</button>
+        <button id="stopSharing" class="hidden">Stop Sharing</button>
+        <video id="localVideo" autoplay playsinline muted class="hidden"></video>
+        <video id="remoteVideo" autoplay playsinline class="hidden"></video>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const socket = io();
+        let peerConnection;
+        let roomId;
+        let isHost = false;
+        let localStream;
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log(message);
+        }
+
+        document.getElementById('createRoom').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/create_room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ otp: prompt('Enter OTP:') }) });
+                const data = await response.json();
+                if (data.room_id) {
+                    roomId = data.room_id;
+                    document.getElementById('roomId').value = roomId;
+                    document.getElementById('roomIdText').textContent = `Room ID: ${roomId}`;
+                    document.getElementById('roomIdDisplay').classList.remove('hidden');
+                    document.getElementById('initial-controls').classList.add('hidden');
+                    document.getElementById('startSharing').classList.remove('hidden');
+                    document.getElementById('stopSharing').classList.remove('hidden');
+                    document.getElementById('copyButton').classList.remove('hidden');
+                    socket.emit('join', { room_id: roomId });
+                    updateStatus('Room created, waiting for others to join...');
+                } else {
+                    updateStatus('Error creating room: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                updateStatus('Error creating room: ' + error);
+            }
+        });
+
+        document.getElementById('joinRoom').addEventListener('click', () => {
+            roomId = document.getElementById('roomId').value;
+            if (roomId) {
+                socket.emit('join', { room_id: roomId });
+                updateStatus('Attempting to join room...');
+                document.getElementById('initial-controls').classList.add('hidden');
+                document.getElementById('roomIdDisplay').classList.add('hidden');
+                document.getElementById('startSharing').classList.add('hidden');
+                document.getElementById('stopSharing').classList.add('hidden');
+                document.getElementById('copyButton').classList.add('hidden');
+            } else {
+                updateStatus('Please enter a room ID');
+            }
+        });
+
+        document.getElementById('startSharing').addEventListener('click', async () => {
+            try {
+                localStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('localVideo').classList.remove('hidden');
+                updateStatus('Started sharing screen');
+
+                await createPeerConnection();
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('offer', { room_id: roomId, offer: offer });
+            } catch (error) {
+                updateStatus('Error starting screen share: ' + error);
+            }
+        });
+
+        document.getElementById('stopSharing').addEventListener('click', () => {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                document.getElementById('localVideo').classList.add('hidden');
+                updateStatus('Stopped sharing screen');
+
+                if (peerConnection) {
+                    peerConnection.close();
+                    peerConnection = null;
+                }
+            }
+            document.getElementById('startSharing').classList.remove('hidden');
+        });
+
+        document.getElementById('copyButton').addEventListener('click', () => {
+            const roomIdText = document.getElementById('roomIdText').textContent;
+            navigator.clipboard.writeText(roomIdText.replace('Room ID: ', ''))
+                .then(() => updateStatus('Room ID copied to clipboard'))
+                .catch(err => updateStatus('Error copying Room ID: ' + err));
+        });
+
+        socket.on('connect', () => {
+            updateStatus('Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            updateStatus('Disconnected from server');
+        });
+
+        socket.on('host_joined', (data) => {
+            isHost = true;
+            document.getElementById('startSharing').classList.remove('hidden');
+            updateStatus('You are the host. Click "Start Sharing" to begin.');
+        });
+
+        socket.on('viewer_joined', (data) => {
+            updateStatus('Viewer joined the room');
+        });
+
+        socket.on('offer', async (data) => {
+            if (!isHost) {
+                updateStatus('Received offer from host');
+                await createPeerConnection();
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit('answer', { room_id: roomId, answer: answer });
+            }
+        });
+
+        socket.on('answer', async (data) => {
+            updateStatus('Received answer from viewer');
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        });
+
+        socket.on('ice_candidate', async (data) => {
+            updateStatus('Received ICE candidate');
+            if (peerConnection) {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } catch (error) {
+                    updateStatus('Error adding ICE candidate: ' + error);
+                }
+            }
+        });
+
+        socket.on('error', (data) => {
+            updateStatus('Error: ' + data.message);
+        });
+
+        async function createPeerConnection() {
+            peerConnection = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' }
+                ]
+            });
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('ice_candidate', { room_id: roomId, candidate: event.candidate });
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
+                document.getElementById('remoteVideo').classList.remove('hidden');
+                updateStatus('Receiving remote stream');
+            };
+
+            peerConnection.oniceconnectionstatechange = () => {
+                updateStatus('ICE connection state: ' + peerConnection.iceConnectionState);
+            };
+
+            return peerConnection;
+        }
+    </script>
+</body>
+</html>
