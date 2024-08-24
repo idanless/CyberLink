@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="![image](https://github.com/user-attachments/assets/f097c13b-4ba5-4311-8e2e-4c8c066792db)
+    <img src="https://github.com/idanless/CyberLink/blob/main/cyberLink.png?raw=true")
 " alt="Logo" width="200"/>
 </p>
 ## Overview
