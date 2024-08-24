@@ -28,7 +28,7 @@
 1. Clone the repository:
     ```bash
     git clone https://github.com/idanless/CyberLink.git
-    cd your-repo
+    cd CyberLink
     ```
 
 2. Install the required packages:
