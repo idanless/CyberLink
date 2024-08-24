@@ -1,14 +1,13 @@
-# [Your App Name]
+# CyberLink
 
 ## Overview
 
-**[Your App Name]** is a cutting-edge screen-sharing application that allows users to create and join real-time screen-sharing sessions with ease. Built with Flask and Socket.IO, it provides seamless, high-quality screen sharing with a focus on security and user experience.
+*CyberLink** is a cutting-edge screen-sharing application that allows users to create and join real-time screen-sharing sessions with ease. Built with Flask and Socket.IO, it provides seamless, high-quality screen sharing with a focus on security and user experience.
 
 ## Features
 
 - **Create and Join Rooms**: Easily create new rooms or join existing ones using a unique Room ID.
 - **Screen Sharing**: Share your screen in real-time with other participants.
-- **Tech-Inspired UI**: A modern, cyber-themed interface designed for a futuristic user experience.
 - **Secure Access**: Integration with OTP for secure room creation and joining.
 - **Responsive Design**: Optimized for various screen sizes and devices.
 - **Status Updates**: Real-time status updates on connection and sharing state.
@@ -70,10 +69,4 @@
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgements
 
-Inspired by modern web technologies and cybersecurity practices. Special thanks to the open-source community for their invaluable contributions.
-
-## Contact
-
-For any questions or support, please contact [Your Name] at [Your Email Address].
