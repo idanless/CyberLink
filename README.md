@@ -1,5 +1,6 @@
 <p align="center">
-    <img src="path/to/your/logo.png" alt="Logo" width="200"/>
+    <img src="![image](https://github.com/user-attachments/assets/f097c13b-4ba5-4311-8e2e-4c8c066792db)
+" alt="Logo" width="200"/>
 </p>
 ## Overview
 
