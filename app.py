@@ -62,4 +62,4 @@ def on_join(data):
 
 if __name__ == '__main__':
     context = ('cert.pem', 'key.pem')
-    socketio.run(app, debug=True, host='10.100.102.143', port=5001, certfile=CERT, keyfile=CERT_KEY)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5001, certfile=CERT, keyfile=CERT_KEY)
