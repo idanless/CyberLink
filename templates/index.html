@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <title>Screen Sharing App</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -24,15 +26,14 @@
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-width: 1200px; /* Increased for better fit */
-            max-height: 700px; /* Increased for better fit */
-            overflow: hidden;
+            max-width: 1200px;
+            max-height: 700px;
             position: relative;
         }
 
         img#logo {
-            width: 500px; /* Adjust size as needed */
-            height: auto; /* Maintain aspect ratio */
+            width: 500px;
+            height: auto;
             margin-bottom: 20px;
         }
 
@@ -65,26 +66,26 @@
 
         video {
             width: 100%;
-            height: auto; /* Maintain aspect ratio */
-            max-height: 45%; /* Adjusted for better visibility */
+            height: auto;
+            max-height: 80vh;
             margin-top: 20px;
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
 
         #localVideo {
-            max-height: 180px; /* Adjusted for 1920x1080 screen size */
+            max-height: 180px;
         }
 
         #remoteVideo {
-            max-height: 360px; /* Adjusted for 1920x1080 screen size */
+            max-height: 80vh;
         }
 
         #status {
-            font-size: 20px; /* Increased font size */
-            white-space: pre-wrap; /* Preserve formatting */
-            overflow: auto; /* Scroll if content is too large */
-            max-height: 100px; /* Fixed height with scroll */
+            font-size: 20px;
+            white-space: pre-wrap;
+            overflow: auto;
+            max-height: 100px;
             font-weight: bold;
             color: #007BFF;
         }
@@ -97,7 +98,7 @@
             margin-top: 20px;
             font-weight: bold;
             color: #333;
-            font-size: 24px; /* Increase font size */
+            font-size: 24px;
         }
 
         #copyButton {
@@ -117,6 +118,16 @@
         #stopSharing:hover {
             background-color: #c82333;
         }
+
+        .fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body>
@@ -134,28 +145,46 @@
         </div>
         <button id="startSharing" class="hidden">Start Sharing</button>
         <button id="stopSharing" class="hidden">Stop Sharing</button>
+        <button id="fullscreenButton" class="hidden">Fullscreen</button>
+        <button id="popupButton" class="hidden">Open in Popup</button>
         <video id="localVideo" autoplay playsinline muted class="hidden"></video>
         <video id="remoteVideo" autoplay playsinline class="hidden"></video>
         <div id="status"></div>
     </div>
 
     <script>
-        const socket = io();
+        const socket = io(window.location.origin);
         let peerConnection;
         let roomId;
         let isHost = false;
         let localStream;
+        let popupWindow = null;
 
         function updateStatus(message) {
             document.getElementById('status').textContent = message;
             console.log(message);
         }
 
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            updateStatus('Connected to server');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection Error:', error);
+            updateStatus('Failed to connect to server. Please check your network connection.');
+        });
+
         document.getElementById('createRoom').addEventListener('click', async () => {
             try {
-                const response = await fetch('/create_room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ otp: prompt('Enter OTP:') }) });
+                const otp = prompt('Enter OTP:');
+                const response = await fetch('/create_room', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ otp })
+                });
                 const data = await response.json();
-                if (data.room_id) {
+                if (response.ok) {
                     roomId = data.room_id;
                     document.getElementById('roomId').value = roomId;
                     document.getElementById('roomIdText').textContent = `Room ID: ${roomId}`;
@@ -201,7 +230,7 @@
 
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
-                socket.emit('offer', { room_id: roomId, offer: offer });
+                socket.emit('offer', { room_id: roomId, offer });
             } catch (error) {
                 updateStatus('Error starting screen share: ' + error);
             }
@@ -228,22 +257,53 @@
                 .catch(err => updateStatus('Error copying Room ID: ' + err));
         });
 
-        socket.on('connect', () => {
-            updateStatus('Connected to server');
+        document.getElementById('fullscreenButton').addEventListener('click', () => {
+            const remoteVideo = document.getElementById('remoteVideo');
+            if (remoteVideo.requestFullscreen) {
+                remoteVideo.requestFullscreen();
+            } else if (remoteVideo.mozRequestFullScreen) {
+                remoteVideo.mozRequestFullScreen();
+            } else if (remoteVideo.webkitRequestFullscreen) {
+                remoteVideo.webkitRequestFullscreen();
+            } else if (remoteVideo.msRequestFullscreen) {
+                remoteVideo.msRequestFullscreen();
+            }
         });
 
-        socket.on('disconnect', () => {
-            updateStatus('Disconnected from server');
+        document.getElementById('popupButton').addEventListener('click', () => {
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.focus();
+                return;
+            }
+            popupWindow = window.open('', 'Video Popup', 'width=800,height=600');
+            popupWindow.document.body.innerHTML = `
+                <video id="popupVideo" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain;"></video>
+            `;
+            const popupVideo = popupWindow.document.getElementById('popupVideo');
+            popupVideo.srcObject = document.getElementById('remoteVideo').srcObject;
+
+            popupWindow.onresize = () => {
+                popupVideo.style.width = '100%';
+                popupVideo.style.height = '100%';
+            };
         });
 
-        socket.on('host_joined', (data) => {
+        socket.on('host_joined', () => {
             isHost = true;
             document.getElementById('startSharing').classList.remove('hidden');
+            document.getElementById('fullscreenButton').classList.add('hidden');
+            document.getElementById('popupButton').classList.add('hidden');
             updateStatus('You are the host. Click "Start Sharing" to begin.');
         });
 
-        socket.on('viewer_joined', (data) => {
+        socket.on('viewer_joined', () => {
             updateStatus('Viewer joined the room');
+            if (!isHost) {
+                const remoteVideo = document.getElementById('remoteVideo');
+                remoteVideo.controls = true;
+                document.getElementById('fullscreenButton').classList.remove('hidden');
+                document.getElementById('popupButton').classList.remove('hidden');
+            }
         });
 
         socket.on('offer', async (data) => {
@@ -253,7 +313,7 @@
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-                socket.emit('answer', { room_id: roomId, answer: answer });
+                socket.emit('answer', { room_id: roomId, answer });
             }
         });
 
@@ -273,35 +333,73 @@
             }
         });
 
-        socket.on('error', (data) => {
-            updateStatus('Error: ' + data.message);
-        });
-
         async function createPeerConnection() {
             peerConnection = new RTCPeerConnection({
                 iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' }
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
                 ]
             });
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
+                    console.log('New ICE candidate:', event.candidate);
                     socket.emit('ice_candidate', { room_id: roomId, candidate: event.candidate });
+                } else {
+                    console.log('ICE candidate gathering completed');
                 }
             };
 
             peerConnection.ontrack = (event) => {
-                document.getElementById('remoteVideo').srcObject = event.streams[0];
-                document.getElementById('remoteVideo').classList.remove('hidden');
+                const remoteVideo = document.getElementById('remoteVideo');
+                remoteVideo.srcObject = event.streams[0];
+                remoteVideo.classList.remove('hidden');
                 updateStatus('Receiving remote stream');
+
+                if (popupWindow && !popupWindow.closed) {
+                    const popupVideo = popupWindow.document.getElementById('popupVideo');
+                    if (popupVideo) {
+                        popupVideo.srcObject = event.streams[0];
+                    }
+                }
             };
 
             peerConnection.oniceconnectionstatechange = () => {
+                console.log('ICE Connection State:', peerConnection.iceConnectionState);
                 updateStatus('ICE connection state: ' + peerConnection.iceConnectionState);
+            };
+
+            peerConnection.onsignalingstatechange = () => {
+                console.log('Signaling State:', peerConnection.signalingState);
+                if (peerConnection.signalingState === 'stable') {
+                    console.log('Connection established successfully');
+                }
             };
 
             return peerConnection;
         }
+
+        async function checkPermissions() {
+            try {
+                await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                console.log('Permissions granted');
+            } catch (error) {
+                console.error('Permissions not granted:', error);
+                updateStatus('Please grant necessary permissions to receive the stream');
+            }
+        }
+
+        function checkBrowserSupport() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                updateStatus('Your browser does not support the necessary features for screen sharing');
+                return false;
+            }
+            return true;
+        }
+
+        // Run initial checks
+        checkBrowserSupport();
+        checkPermissions();
     </script>
 </body>
 </html>
